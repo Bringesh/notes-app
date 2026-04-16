@@ -3,6 +3,8 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css'; 
 
 export default function Editor({ token, username, onLogout }) {
+  // Start with sidebar hidden on mobile, but open on desktop
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 768);
   const [title, setTitle] = useState('Untitled Note');
   const [content, setContent] = useState('');
   const [currentNoteId, setCurrentNoteId] = useState(null); 
@@ -10,7 +12,6 @@ export default function Editor({ token, username, onLogout }) {
   
   const [localFolders, setLocalFolders] = useState([]); 
   const [activeFolder, setActiveFolder] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); 
   
   const [referenceFile, setReferenceFile] = useState(null);
   const [showReference, setShowReference] = useState(false);
@@ -18,6 +19,16 @@ export default function Editor({ token, username, onLogout }) {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [isQuizzing, setIsQuizzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-resize listener to handle switching between phone and desktop views
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) setIsSidebarOpen(true);
+      else setIsSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
@@ -105,7 +116,6 @@ export default function Editor({ token, username, onLogout }) {
     setLocalFolders(prev => prev.filter(f => f !== folderName));
   };
 
-  // Instant local file loading
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.type === 'application/pdf') {
@@ -183,9 +193,9 @@ export default function Editor({ token, username, onLogout }) {
     setCurrentNoteId(note._id); 
     setTitle(note.title); 
     setContent(note.content); 
-    // Clear out any old PDF when switching notes
     setReferenceFile(null);
     setShowReference(false);
+    if (window.innerWidth < 768) setIsSidebarOpen(false); // Auto-close on mobile
   };
   
   const startNewNote = () => { 
@@ -194,24 +204,28 @@ export default function Editor({ token, username, onLogout }) {
     setContent(''); 
     setReferenceFile(null); 
     setShowReference(false);
+    if (window.innerWidth < 768) setIsSidebarOpen(false); // Auto-close on mobile
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#0d1117] font-sans text-gray-200 overflow-hidden">
+    <div className="flex h-screen w-full bg-[#0d1117] font-sans text-gray-200 overflow-hidden relative">
       
-      <div className={`flex flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden ${isSidebarOpen ? 'w-[448px] opacity-100' : 'w-0 opacity-0'}`}>
-        <aside className="w-48 bg-[#161b22] border-r border-gray-800 flex flex-col z-20 flex-shrink-0">
+      {/* SIDEBAR OVERLAY (Mobile) & STATIC (Desktop) */}
+      <div className={`absolute md:relative z-40 h-full flex flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden bg-[#0d1117] shadow-2xl md:shadow-none ${isSidebarOpen ? 'w-full md:w-[448px] translate-x-0' : 'w-0 -translate-x-full md:translate-x-0 md:w-0'}`}>
+        
+        {/* Folders List */}
+        <aside className="w-1/3 md:w-48 bg-[#161b22] border-r border-gray-800 flex flex-col z-20 flex-shrink-0">
           <div className="p-4 border-b border-gray-800 flex justify-between items-center h-[61px]">
-            <h1 className="font-bold text-sm tracking-widest text-gray-400 uppercase">Folders</h1>
+            <h1 className="font-bold text-xs md:text-sm tracking-widest text-gray-400 uppercase truncate">Folders</h1>
             <button onClick={handleCreateFolder} className="text-gray-400 hover:text-white" title="New Folder">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
             </button>
           </div>
           <div className="flex-1 overflow-y-auto py-2">
             {allFolders.map(folder => (
-              <div key={folder} onClick={() => { setActiveFolder(folder); startNewNote(); }} className={`group cursor-pointer w-full text-left px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-between ${ activeFolder === folder ? 'bg-blue-600/10 text-blue-400 border-r-2 border-blue-500' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}>
+              <div key={folder} onClick={() => { setActiveFolder(folder); startNewNote(); }} className={`group cursor-pointer w-full text-left px-2 md:px-4 py-2.5 text-xs md:text-sm font-medium transition-colors flex items-center justify-between ${ activeFolder === folder ? 'bg-blue-600/10 text-blue-400 border-r-2 border-blue-500' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}>
                 <span className="truncate pr-2">📁 {folder}</span>
-                <div className="hidden group-hover:flex gap-2">
+                <div className="hidden group-hover:flex gap-1 md:gap-2">
                   <button onClick={(e) => handleRenameFolder(folder, e)} className="hover:text-blue-400">✏️</button>
                   <button onClick={(e) => handleDeleteFolder(folder, e)} className="hover:text-red-400">🗑️</button>
                 </div>
@@ -220,14 +234,21 @@ export default function Editor({ token, username, onLogout }) {
           </div>
         </aside>
 
-        <aside className="w-64 bg-[#0d1117] border-r border-gray-800 flex flex-col z-10 flex-shrink-0">
+        {/* Notes List */}
+        <aside className="w-2/3 md:w-64 bg-[#0d1117] border-r border-gray-800 flex flex-col z-10 flex-shrink-0">
           <div className="p-4 border-b border-gray-800 flex justify-between items-center h-[61px]">
             <h2 className="font-semibold text-gray-100 truncate pr-2">{activeFolder || 'No Folder'}</h2>
-            {activeFolder && (
-              <button onClick={startNewNote} className="text-gray-400 hover:text-blue-400" title="New Note">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+            <div className="flex gap-2 items-center">
+              {activeFolder && (
+                <button onClick={startNewNote} className="text-gray-400 hover:text-blue-400" title="New Note">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                </button>
+              )}
+              {/* Mobile Close Button */}
+              <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-400 hover:text-white p-1">
+                ✕
               </button>
-            )}
+            </div>
           </div>
           
           <div className="flex-1 overflow-y-auto">
@@ -248,50 +269,53 @@ export default function Editor({ token, username, onLogout }) {
         </aside>
       </div>
 
-      <div className="flex-1 flex flex-col bg-[#0d1117] min-w-0">
-        <header className="h-[61px] border-b border-gray-800 flex items-center justify-between px-4 bg-[#0d1117]">
+      {/* WORKSPACE AREA */}
+      <div className="flex-1 flex flex-col bg-[#0d1117] min-w-0 w-full">
+        
+        {/* Horizontal Scrolling Toolbar */}
+        <header className="h-[61px] border-b border-gray-800 flex items-center justify-between px-2 md:px-4 bg-[#0d1117] overflow-x-auto w-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           
-          <div className="flex items-center gap-3 w-1/3">
+          <div className="flex items-center gap-2 md:gap-3 min-w-max">
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-gray-800 transition-colors" title="Toggle Sidebar">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
             </button>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="text-lg font-bold bg-transparent border-none outline-none focus:ring-0 text-white w-full placeholder-gray-600" placeholder="Name your note..." />
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="text-base md:text-lg font-bold bg-transparent border-none outline-none focus:ring-0 text-white w-[140px] md:w-full min-w-[140px] placeholder-gray-600" placeholder="Name your note..." />
           </div>
           
-          <div className="flex gap-2 items-center">
-            <button onClick={handleSaveNote} disabled={isSaving} className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm font-medium transition-colors border border-gray-700">
+          <div className="flex gap-2 items-center min-w-max ml-4 pr-2">
+            <button onClick={handleSaveNote} disabled={isSaving} className="px-3 md:px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs md:text-sm font-medium transition-colors border border-gray-700">
               {isSaving ? 'Saving...' : 'Save'}
             </button>
             <div className="w-px h-6 bg-gray-700 mx-1"></div> 
-            <button onClick={handleSummarize} disabled={isSummarizing} className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium transition-colors">✨ Summarize</button>
-            <button onClick={handleGenerateQuiz} disabled={isQuizzing} className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-sm font-medium transition-colors">🧠 Quiz</button>
+            <button onClick={handleSummarize} disabled={isSummarizing} className="px-3 md:px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs md:text-sm font-medium transition-colors">✨ Summarize</button>
+            <button onClick={handleGenerateQuiz} disabled={isQuizzing} className="px-3 md:px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs md:text-sm font-medium transition-colors">🧠 Quiz</button>
             
             <div className="w-px h-6 bg-gray-700 mx-1"></div> 
             
-            <label className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm font-medium transition-colors border border-gray-700 cursor-pointer flex items-center gap-2">
+            <label className="px-3 md:px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs md:text-sm font-medium transition-colors border border-gray-700 cursor-pointer flex items-center gap-2">
               <span>📁 {referenceFile ? 'Change PDF' : 'Upload PDF'}</span>
               <input type="file" accept="application/pdf" className="hidden" onChange={handleFileUpload} />
             </label>
             
             {referenceFile && (
-              <button onClick={() => setShowReference(!showReference)} className="px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm font-medium transition-colors border border-gray-700">
+              <button onClick={() => setShowReference(!showReference)} className="px-3 md:px-4 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs md:text-sm font-medium transition-colors border border-gray-700">
                 {showReference ? 'Hide PDF' : 'Show PDF'}
               </button>
             )}
 
             <div className="w-px h-6 bg-gray-700 mx-1"></div>
 
-            <div className="flex items-center gap-3 px-3 py-1 bg-[#161b22] border border-gray-800 rounded-lg ml-2">
-              <span className="text-sm font-medium text-gray-300">👤 {username}</span>
-              <button onClick={onLogout} className="text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider">Logout</button>
+            <div className="flex items-center gap-2 md:gap-3 px-2 md:px-3 py-1 bg-[#161b22] border border-gray-800 rounded-lg ml-1 md:ml-2">
+              <span className="text-xs md:text-sm font-medium text-gray-300">👤 {username}</span>
+              <button onClick={onLogout} className="text-[10px] md:text-xs text-red-400 hover:text-red-300 font-bold uppercase tracking-wider">Logout</button>
             </div>
-
           </div>
         </header>
 
-        <main className="flex-1 flex overflow-hidden">
+        {/* Responsive Content Area */}
+        <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
           {showReference && referenceFile && (
-            <div className="w-1/2 border-r border-gray-800 bg-[#161b22] flex flex-col transition-all">
+            <div className="w-full md:w-1/2 h-1/2 md:h-full border-b md:border-b-0 md:border-r border-gray-800 bg-[#161b22] flex flex-col transition-all">
               <div className="px-4 py-2 bg-[#161b22] border-b border-gray-800 flex justify-between items-center text-xs font-semibold text-gray-400">
                 <span className="truncate">{referenceFile.name}</span>
                 <button onClick={() => setShowReference(false)} className="hover:text-white transition-colors" title="Close PDF">✕</button>
